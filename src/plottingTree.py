@@ -14,11 +14,13 @@ def build_Linkage_Matrix(tree_set):
     linkage_matrix = []
     distance = 1.0
     offsetArray = [0]*len(tree_set)
+    not_used = [1]*len(tree_set)
     index=length-1
     for i in range(len(tree_set)):
         e = sorted(tree_set[i])
         if(len(e) ==2):
             linkage_matrix.append([int(e[0]), int(e[1]), distance/(len(tree_set)), len(e)])
+            not_used[i]=0
             distance+=1
             index+=1
         else:
@@ -57,19 +59,16 @@ def build_Linkage_Matrix(tree_set):
             for j in range(1,len(biggest)):
                 if(j>1):
                     l1=index
-                    T=[0]*len(tree_set)   
                 else :
-                    T=offsetArray
-                    l1=biggest[0][0]+(length if biggest[0][1] else 0)+T[biggest[0][0]]
-                l2=biggest[j][0]+(length if biggest[j][1] else 0)+(T[biggest[j][0]] if biggest[j][1] else 0)
+                    l1=biggest[0][0]+(length if biggest[0][1] else 0)+offsetArray[biggest[0][0]]
+                l2=biggest[j][0]+(length if biggest[j][1] else 0)+(offsetArray[biggest[j][0]] if biggest[j][1] else 0)
                 linkage_matrix.append([l1, l2, distance/(len(tree_set)), len(e)])
                 index+=1
-                for k in range(biggest[0][0],len(tree_set)):
-                    offsetArray[k]+=1 if j>1 else 0
-            for k in range(biggest[0][0],len(tree_set)):
-                    offsetArray[k]-=1
+           
+            for j in range(len(tree_set)):
+                offsetArray[j]+=(len(biggest)-2)*(not_used[j])
             distance+=1
-
+            not_used[i]=0
 
 
 
