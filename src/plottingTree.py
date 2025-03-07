@@ -20,14 +20,14 @@ def build_Linkage_Matrix(tree_set):
         print(linkage_matrix)
         return linkage_matrix
 
-    distance = 1.0
     offsetArray = [0]*len(tree_set)
+    distanceArray = [0]*len(tree_set)
     index=length-1
     for i in range(len(tree_set)):
         e = sorted(tree_set[i])
         if(len(e) ==2):
-            linkage_matrix.append([int(e[0]), int(e[1]), distance/(len(tree_set)), len(e)])
-            distance+=1
+            linkage_matrix.append([int(e[0]), int(e[1]), 1.0, len(e)])
+            distanceArray[i]=1
             index+=1
         else:
             subset_list=[]
@@ -36,9 +36,9 @@ def build_Linkage_Matrix(tree_set):
                     subset_list.append(j)
 
             subset_list.sort(key=lambda x: len(tree_set[x]), reverse=True)
-            #the first element is the index of the subset and the second element indicate if the subset is nmot a single element
-            biggest = [(subset_list[0],True)]
 
+            #the first element is the index of the subset and the second element indicate if the subset is a composed cluster
+            biggest = [(subset_list[0],True)]
             for j in range(1,len(subset_list)):
                 is_subset = False
                 for b in biggest:
@@ -53,27 +53,27 @@ def build_Linkage_Matrix(tree_set):
                 diff = diff - set(tree_set[b[0]])
             for el in diff:
                 biggest.append((int(el),False))
-            #print(diff)
-            #print("cccccccccccccccccccccccccccccccccccccccccccccccc")
-            #print(biggest)
-            #biggest.sort(key=lambda x: int(x[0])+(length if x[1] else 0),reverse=True)
-            #print(subset_list)
-            #print(biggest)
-            #print(offsetArray)
-           # print("$$$$$$$$$$$$$$$$$$$$$$$")
-            #print(biggest)
+            print("------------")
+            highest_hight=1
+            for b in biggest:
+               if(b[1]):
+                   if(distanceArray[b[0]]>highest_hight):
+                        highest_hight=distanceArray[b[0]]
+          
             for j in range(1,len(biggest)):
                 if(j>1):
                     l1=index
                 else :
                     l1=biggest[0][0]+(length if biggest[0][1] else 0)+offsetArray[biggest[0][0]]
-                l2=biggest[j][0]+(length if biggest[j][1] else 0)+(offsetArray[biggest[j][0]] if biggest[j][1] else 0)
-                linkage_matrix.append([l1, l2, distance/(len(tree_set)), len(e)])
+                l2=biggest[j][0]+(length+offsetArray[biggest[j][0]] if biggest[j][1] else 0)
+
+
+                linkage_matrix.append([l1, l2, highest_hight+1, len(e)])
+                distanceArray[i]=highest_hight+1
                 index+=1
            
             for j in range(i,len(tree_set)):
                 offsetArray[j]+=(len(biggest)-2)
-            distance+=1
 
 
 
@@ -86,7 +86,6 @@ def plot_tree(tree_set):
     Plot the tree using networkx and matplotlib.
     """
     T_linkage = build_Linkage_Matrix(tree_set)
-    #print(pos)
     fig = plt.figure(figsize=(35, 15))
     dn = dendrogram(T_linkage)
     plt.savefig('T*.png') 
