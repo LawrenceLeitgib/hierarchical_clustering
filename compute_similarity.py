@@ -1,15 +1,11 @@
-import scipy as sp
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.cluster.hierarchy import dendrogram, linkage
 from sklearn.metrics import pairwise_distances
 
 from matplotlib import pyplot as plt
 import json
 import argparse
-import numpy as np
+import cupy as np
 
-from src.plottingTree import build_graph, plot_tree
-from scipy.spatial.distance import squareform
 
 
 NUMBER_OF_SAMPLE=50
@@ -31,7 +27,7 @@ def main(embedding, num_samples, metric,eps):
     
     distance_matrix = pairwise_distances(tfidf_matrix, metric=metric)
 
-    np.save("distance_matrix_"+embedding+"_"+str(num_samples)+".npy", distance_matrix)
+    np.save("distance_matrix/distance_matrix_"+embedding+"_"+str(num_samples)+".npy", distance_matrix)
     
 
 def extract_abstracts(num_samples):

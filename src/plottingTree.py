@@ -9,18 +9,24 @@ def build_Linkage_Matrix(tree_set):
     length =  int(sorted([x for x in tree_set if len(x) == 1],key=lambda x: int(x[0]), reverse=True)[0][0])+1
     #print(length)
     tree_set = [x for x in tree_set if len(x) > 1]
-    print("----------------------------")
-    print(tree_set)
+    #print("----------------------------")
+    #print(tree_set)
     linkage_matrix = []
+    if(len(tree_set)==1):
+        e=tree_set[0]
+        linkage_matrix.append([int(e[0]), int(e[1]), 1.0, 2])
+        for i in range(2,len(e)):
+            linkage_matrix.append([len(e)+i-2, int(e[i]), 1.0, i+1])
+        print(linkage_matrix)
+        return linkage_matrix
+
     distance = 1.0
     offsetArray = [0]*len(tree_set)
-    not_used = [1]*len(tree_set)
     index=length-1
     for i in range(len(tree_set)):
         e = sorted(tree_set[i])
         if(len(e) ==2):
             linkage_matrix.append([int(e[0]), int(e[1]), distance/(len(tree_set)), len(e)])
-            not_used[i]=0
             distance+=1
             index+=1
         else:
@@ -50,12 +56,12 @@ def build_Linkage_Matrix(tree_set):
             #print(diff)
             #print("cccccccccccccccccccccccccccccccccccccccccccccccc")
             #print(biggest)
-            biggest.sort(key=lambda x: int(x[0])+(length if x[1] else 0),reverse=True)
+            #biggest.sort(key=lambda x: int(x[0])+(length if x[1] else 0),reverse=True)
             #print(subset_list)
             #print(biggest)
-            print(offsetArray)
-            print("$$$$$$$$$$$$$$$$$$$$$$$")
-            print(biggest)
+            #print(offsetArray)
+           # print("$$$$$$$$$$$$$$$$$$$$$$$")
+            #print(biggest)
             for j in range(1,len(biggest)):
                 if(j>1):
                     l1=index
@@ -65,16 +71,14 @@ def build_Linkage_Matrix(tree_set):
                 linkage_matrix.append([l1, l2, distance/(len(tree_set)), len(e)])
                 index+=1
            
-            for j in range(len(tree_set)):
-                offsetArray[j]+=(len(biggest)-2)*(not_used[j])
+            for j in range(i,len(tree_set)):
+                offsetArray[j]+=(len(biggest)-2)
             distance+=1
-            not_used[i]=0
 
 
 
 
-    print("$$$$$$$$$$$$$$$$$$$$$$$")
-    print(linkage_matrix)
+    #print(linkage_matrix)
     return linkage_matrix
 
 def plot_tree(tree_set):

@@ -6,25 +6,32 @@ from sklearn.metrics import pairwise_distances
 from matplotlib import pyplot as plt
 import json
 import argparse
-import numpy as np
+import cupy as np
+
+
+# Limit managed memory usage to 32GB
+MAX_RAM_USAGE = 32 * (1024**3)/1000  # 32GB in bytes
+np.cuda.MemoryPool(np.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
+
+np.cuda.set_allocator(np.cuda.MemoryPool(np.cuda.malloc_managed).malloc)
+
 
 from src.plottingTree import plot_tree
+from src.treeSet import Node,tree_set_to_tree
 from scipy.spatial.distance import squareform
 
 
-def main(embedding, num_samples, metric,eps,delta):
+def main(embedding, num_samples, metric,eps,delta,deltaType):
     print(f"Using embedding: {embedding}")
    
 
-    distance_matrix = np.load("distance_matrix_"+embedding+"_"+str(num_samples)+".npy")
+    distance_matrix = np.load("distance_matrix/distance_matrix_"+embedding+"_"+str(num_samples)+".npy")
     similarity_matrix = 1 / (1 + distance_matrix)  # Simple similarity measure
-    condensed_distance = squareform(distance_matrix, checks=False)
+    condensed_distance = squareform(distance_matrix.get(), checks=False)
     print(condensed_distance.shape)
 
     #Alogrith 1: Compute the binary tree
-    T_linkage=linkage(condensed_distance,method='single',metric=metric)
-    print(T_linkage)
-    print("££££££££££££££££££££££££££££££££££$")
+    T_linkage=linkage(condensed_distance,method='complete',metric=metric)
     fig = plt.figure(figsize=(35, 15))
     dn = dendrogram(T_linkage)
     plt.savefig('TF_IDF_T_Linkage.png') 
@@ -35,16 +42,17 @@ def main(embedding, num_samples, metric,eps,delta):
     set_of_sets = linkage_to_set_of_sets(T_linkage, labels)
 
     #Algorithm 2: Trim invalid clusters
-    most_informative_hierarchy = trim_invalid_clusters_1(set_of_sets, similarity_matrix,eps,delta)
+    if(deltaType==1):
+        most_informative_hierarchy = trim_invalid_clusters_1(set_of_sets, similarity_matrix,eps,delta)
+    else:
+        most_informative_hierarchy = trim_invalid_clusters_2(set_of_sets, similarity_matrix,eps,delta)
 
     print(set_of_sets)
     print("-----------------------------")
     print(most_informative_hierarchy)
 
-    s_test=[('0',), ('1',), ('2',), ('3',), ('4',), ('5',), ('6',), ('7',),  ('8',), ('9',), ('10',),('2', '6'), ('0', '5'), ('7', '1', '4', '2', '6', '0', '5'),('9','8') ,('3', '7', '1', '4', '2', '6', '0', '5','8','9','10')]
-    s_test2=[('0',), ('1',), ('2',), ('3',), ('4',), ('5',), ('6',), ('7',),  ('8',), ('9',), ('10',),('11',),('12',),
-             ('0','1'), ('2','3'), ('4','5'), ('6','7'), ('8','9'), ('10','11'),('6','7', '8','9','10','11'),('0','1','2','3','4','5'),('0','1','2','3','4','5','6','7','8','9','10','11','12')]
-    plot_tree(s_test2)
+   
+    plot_tree(most_informative_hierarchy)
 
 
 
@@ -58,12 +66,7 @@ def trim_invalid_clusters_1(tree, similarity_matrix, eps,delta):
     valid_clusters = []
     num_samples = similarity_matrix.shape[0]
 
-
-    c=0
     for cluster in tree:
-        #print(c,len(tree))
-        c+=1
-
         cluster_items = np.array(list(map(int, cluster)))  # Convert to NumPy array for fast indexing
 
         # If cluster size is 1, automatically valid
@@ -80,6 +83,9 @@ def trim_invalid_clusters_1(tree, similarity_matrix, eps,delta):
         # Get similarity values for non-cluster elements
         non_cluster_items = np.setdiff1d(np.arange(num_samples), cluster_items, assume_unique=True)
 
+    
+        #print(non_cluster_items)
+
       
         # If no non-cluster items exist, no violations can occur
         if len(non_cluster_items) == 0:
@@ -90,33 +96,94 @@ def trim_invalid_clusters_1(tree, similarity_matrix, eps,delta):
         s_xz = similarity_matrix[x[:, None], non_cluster_items]  # Shape: (num_pairs, non_cluster_size)
         s_yz = similarity_matrix[y[:, None], non_cluster_items]  # Shape: (num_pairs, non_cluster_size)
 
+
         # Compute max(s_xz, s_yz)
-        max_s_xz_yz = np.maximum(s_xz[:, None, :], s_yz[None, :, :])  # Shape: (cluster_size, cluster_size, non_cluster_size)
+        max_s_xz_yz = np.maximum(s_xz, s_yz)  # Shape: (num_pairs, non_cluster_size)
+
 
 
         # Ensure `s_xy` is reshaped correctly for broadcasting
         s_xy = s_xy[:, None]  # Shape: (num_pairs, 1)
 
         # Check violation condition: max(s_xz, s_yz) - s_xy > eps
-        violation_counts = (max_s_xz_yz - s_xy > eps).sum()
-        '''
-        print(x,y)
-        print(s_xy)
-        print(cluster_items)
-        print(non_cluster_items)
-        print(s_xz,s_yz)
-        print(violation_counts)
-        print("--------------------------------------------------")
-        '''
+        violation_counts = (max_s_xz_yz - s_xy > eps).sum(axis=(0, 1))   
+        #print(violation_counts)
+      
 
         # If fewer than 2 violations, keep the cluster
-        if (violation_counts  < delta*num_samples):
+        if violation_counts  <= delta*(len(cluster_items)*(len(cluster_items)-1)*len(non_cluster_items)/2):
             valid_clusters.append(cluster)
+        else :
+            if(delta>=1):
+                print("error-------------------------------")
+                quit()
 
 
     return valid_clusters
 
+def trim_invalid_clusters_2(tree, similarity_matrix, eps,delta):
+    tree_node=tree_set_to_tree(tree)
 
+    valid_clusters = [tree_node.data]
+
+    for c in tree_node.children:
+       trim_invalid_clusters_2_rec(c, similarity_matrix, eps,delta,valid_clusters)
+
+    valid_clusters.sort(key=lambda x: len(x),reverse=False)
+
+
+    return valid_clusters
+
+def trim_invalid_clusters_2_rec(tree_node, similarity_matrix, eps,delta,valid_clusters):
+   
+    if is_valide_cluster(tree_node,tree_node.parent, similarity_matrix, eps, delta):
+        valid_clusters.append(tree_node.data)
+        for c in tree_node.children:
+            trim_invalid_clusters_2_rec(c, similarity_matrix, eps,delta,valid_clusters)
+    else:
+        for c in tree_node.children:
+            c.parent = tree_node.parent
+        for c in tree_node.children:
+            trim_invalid_clusters_2_rec(c, similarity_matrix, eps,delta,valid_clusters)
+
+
+def is_valide_cluster(c,p, similarity_matrix, eps, delta):
+    if(len(c.children)==0):
+        assert len(c.data)==1
+        return True
+    cluster_items = np.array(list(map(int, c.data)))  # Convert to NumPy array for fast indexing
+    parentWithoutCluster=set(p.data)-set(c.data)
+    parentWithoutCluster=np.array(list(map(int, parentWithoutCluster)))
+
+
+    x_idx, y_idx = np.triu_indices(len(cluster_items), k=1)  # These are relative indices
+
+    x, y = cluster_items[x_idx], cluster_items[y_idx]  # Convert to actual elements
+    s_xy = similarity_matrix[x, y]
+    s_xz = similarity_matrix[x[:, None], parentWithoutCluster]  # Shape: (num_pairs, non_cluster_size)
+    s_yz = similarity_matrix[y[:, None], parentWithoutCluster]  # Shape: (num_pairs, non_cluster_size)
+
+
+    # Compute max(s_xz, s_yz)
+    max_s_xz_yz = np.maximum(s_xz, s_yz)  # Shape: (num_pairs, non_cluster_size)
+
+
+
+    # Ensure `s_xy` is reshaped correctly for broadcasting
+    s_xy = s_xy[:, None]  # Shape: (num_pairs, 1)
+
+    violation_counts = (max_s_xz_yz - s_xy > eps).sum(axis=(0, 1))   
+
+
+    if violation_counts  <= delta*(len(cluster_items)*(len(cluster_items)-1)*len(parentWithoutCluster)/2):
+        return True
+    else :
+        if(delta>=1):
+            print("error-------------------------------")
+            quit()
+    return False
+
+    
 
 
 def linkage_to_set_of_sets(T_linkage, labels):
@@ -144,5 +211,6 @@ if __name__ == '__main__':
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
     parser.add_argument('--eps', type=float, default=0, help='The epsilon value for Algorithm 3')
     parser.add_argument('--delta', type=float, default=0.1, help='The delta value for Algorithm 3')
+    parser.add_argument('--deltaType', type=int, default=2, help='The algo use for the detla value')
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta)
+    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta,args.deltaType)
