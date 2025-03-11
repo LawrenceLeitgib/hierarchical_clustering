@@ -21,11 +21,13 @@ from src.treeSet import Node,tree_set_to_tree
 from scipy.spatial.distance import squareform
 
 
-def main(embedding, num_samples, metric,eps,delta,deltaType):
+def main(embedding, num_samples, metric,eps,delta,deltaType,PCA):
     print(f"Using embedding: {embedding}")
    
+    
+    PCA_Flag = "PCA_" if PCA else ""
 
-    distance_matrix = np.load("distance_matrix/distance_matrix_"+embedding+"_"+str(num_samples)+".npy")
+    distance_matrix = np.load("distance_matrix/distance_matrix_"+embedding+"_"+PCA_Flag+str(num_samples)+".npy")
     similarity_matrix = 1 / (1 + distance_matrix)  # Simple similarity measure
     condensed_distance = squareform(distance_matrix.get(), checks=False)
     print(condensed_distance.shape)
@@ -173,5 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--eps', type=float, default=0, help='The epsilon value for Algorithm 3')
     parser.add_argument('--delta', type=float, default=0.1, help='The delta value for Algorithm 3')
     parser.add_argument('--deltaType', type=int, default=2, help='The algo use for the detla value')
+    parser.add_argument('--PCA', type=bool, default=True, help='Apply PCA')
+
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta,args.deltaType)
+    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta,args.deltaType,args.PCA)

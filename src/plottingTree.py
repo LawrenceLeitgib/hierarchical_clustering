@@ -2,6 +2,8 @@ import networkx as nx
 from scipy.cluster.hierarchy import dendrogram, linkage
 
 import matplotlib.pyplot as plt
+import numpy as np
+import random
 
 def build_Linkage_Matrix(tree_set):
 
@@ -81,13 +83,52 @@ def build_Linkage_Matrix(tree_set):
     #print(linkage_matrix)
     return linkage_matrix
 
+
+
+def generate_random_color():
+    """Generate a random RGB color."""
+    return f'#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}'
+
+def assign_colors(strings):
+    """Assign a unique random color to each unique string."""
+    color_map = {}
+    result = []
+
+    for s in strings:
+        if s not in color_map:
+            color_map[s] = generate_random_color()
+        result.append(color_map[s])
+    
+    return result
+
+
 def plot_tree(tree_set):
     """
     Plot the tree using networkx and matplotlib.
     """
     T_linkage = build_Linkage_Matrix(tree_set)
+    #color each singleton cluster base on the category list
+    length =  int(sorted([x for x in tree_set if len(x) == 1],key=lambda x: int(x[0]), reverse=True)[0][0])+1
+    category_list = np.load("categories_list/categories_list_"+str(length)+".npy",allow_pickle=True)
+    print(category_list)
+    color_list = assign_colors(category_list)
+    print(color_list)
+
+
     fig = plt.figure(figsize=(35, 15))
+
     dn = dendrogram(T_linkage)
+
+    ax = plt.gca()
+    x_labels = ax.get_xticklabels()
+
+    x_labels = sorted(x_labels, key=lambda x: int(x.get_text()))
+
+    
+
+
+    for lbl, color in zip(x_labels, color_list):
+        lbl.set_color(color)  # Set each label to a different color
     plt.savefig('T*.png') 
 
 
