@@ -4,16 +4,16 @@ from sklearn.metrics import pairwise_distances
 from matplotlib import pyplot as plt
 import json
 import argparse
-import numpy as np
+import cupy as np
 
 
 
 NUMBER_OF_SAMPLE=50
 
 
-def main(embedding, num_samples, metric,PCA):
+def main(embedding, num_samples, metric,PCA,mc,balance):
     print(f"Using embedding: {embedding}")
-    abstract,categories_dict,categories_list = extract_abstracts_and_categories(num_samples)
+    abstract,categories_dict,categories_list = extract_abstracts_and_categories(num_samples,mc,balance)
 
     #Embedding the abstracts
     if embedding == 'TF-IDF':
@@ -25,7 +25,8 @@ def main(embedding, num_samples, metric,PCA):
     else:
         raise ValueError("Invalid embedding type")
     if(PCA):
-        matrix=applie_PCA(matrix)
+        matrix=apply_PCA(matrix)
+
     print(matrix.shape)
     
     distance_matrix = pairwise_distances(matrix, metric=metric)
@@ -52,7 +53,7 @@ def main(embedding, num_samples, metric,PCA):
 
 
     np.save("distance_matrix/distance_matrix_"+embedding+"_"+PCA_Flag+str(num_samples)+".npy", distance_matrix)
-    np.save("categories_list/categories_list_"+str(num_samples)+".npy", categories_list)
+    np.save("categories_list/categories_map_"+str(num_samples)+".npy", categories_list)
 
 
     #creat the PCA plot
@@ -65,24 +66,30 @@ def main(embedding, num_samples, metric,PCA):
 
     
 
-def extract_abstracts_and_categories(num_samples):
+def extract_abstracts_and_categories(num_samples,mc,balance):
     with open('resources/arxiv-metadata-oai-snapshot.json') as f:
         abstract = []
         categories_dist ={}
         categories_list=[]
         count=0
         for line in f:
+            c=json.loads(line)['categories']
+            #contiune if c contain a space
+            if ' ' in c:
+                continue
+
+            if(len(categories_dist.keys())==mc and c not in categories_dist):
+                continue
+
+            if(categories_dist.get(c,0)>=((1+balance)*(num_samples/mc)) and balance!=-1):
+                continue
+
             abstract.append(json.loads(line)['abstract'])
             categories_list.append(json.loads(line)['categories'])
-            c=json.loads(line)['categories']
             if c not in categories_dist:
                 categories_dist[c]=1
             else:
                 categories_dist[c]+=1
-
-            if(count==46 or count==49):
-                print(abstract[count])
-                pass
 
             count+=1
             if count==num_samples:
@@ -90,10 +97,42 @@ def extract_abstracts_and_categories(num_samples):
   
     return abstract,categories_dist,categories_list
 
-
-def applie_PCA(matrix):
-    from sklearn.decomposition import PCA
-    pca = PCA(n_components=2)
+def apply_SVD(matrix):
+    from sklearn.decomposition import TruncatedSVD
+    import numpy as np
+    
+    # Determine an upper bound for components: usually min(n_samples, n_features)
+    n_components_max = min(matrix.shape)
+    
+    # First, compute SVD with maximum components to get the explained variance ratios
+    svd_full = TruncatedSVD(n_components=n_components_max)
+    svd_full.fit(matrix)
+    cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
+    
+    # Find the smallest number of components that explain at least 90% of the variance
+    n_components_required = np.searchsorted(cumulative_variance, 0) + 2
+    
+    # Now run TruncatedSVD with the selected number of components
+    svd = TruncatedSVD(n_components=n_components_required)
+    principalComponents = svd.fit_transform(matrix)
+    
+    print(f"Number of components selected: {n_components_required}")
+    return principalComponents
+def apply_PCA(matrix):
+    from sklearn.decomposition import PCA,TruncatedSVD
+    import numpy as np
+       # Determine an upper bound for components: usually min(n_samples, n_features)
+    n_components_max = min(matrix.shape)
+    print(matrix.shape)
+    
+    # First, compute SVD with maximum components to get the explained variance ratios
+    svd_full = TruncatedSVD(n_components=n_components_max)
+    svd_full.fit(matrix)
+    cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
+    
+    # Find the smallest number of components that explain at least 90% of the variance
+    n_components_required = np.searchsorted(cumulative_variance, 0.1) + 1
+    pca = PCA(n_components=n_components_required)
     principalComponents = pca.fit_transform(matrix)
     return principalComponents
 
@@ -124,6 +163,8 @@ if __name__ == '__main__':
     parser.add_argument('--embedding', type=str, default='TF-IDF', help='The type of embedding to use')
     parser.add_argument('--num_samples', type=int, default=NUMBER_OF_SAMPLE, help='Number of samples to use')
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
-    parser.add_argument('--PCA', type=bool, default=True, help='Apply PCA')
+    parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
+    parser.add_argument('--MC', type=int, default=1000, help='max number of categories')
+    parser.add_argument('--balance', type=float, default=-1, help='use to balance the number of categories')
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.PCA)
+    main(args.embedding, args.num_samples, args.metric,args.PCA,args.MC,args.balance)

@@ -6,14 +6,14 @@ from sklearn.metrics import pairwise_distances
 from matplotlib import pyplot as plt
 import json
 import argparse
-import cupy as np
+import cupy as cp
 
 
 # Limit managed memory usage to 32GB
 MAX_RAM_USAGE = 32 * (1024**3)/1000  # 32GB in bytes
-np.cuda.MemoryPool(np.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
+cp.cuda.MemoryPool(cp.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
 
-np.cuda.set_allocator(np.cuda.MemoryPool(np.cuda.malloc_managed).malloc)
+cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
 
 
 from src.plottingTree import plot_tree
@@ -21,16 +21,28 @@ from src.treeSet import Node,tree_set_to_tree
 from scipy.spatial.distance import squareform
 
 
-def main(embedding, num_samples, metric,eps,delta,deltaType,PCA):
+def main(embedding, num_samples, metric,eps,delta,deltaType,PCA,c):
     print(f"Using embedding: {embedding}")
+
+
    
     
     PCA_Flag = "PCA_" if PCA else ""
 
-    distance_matrix = np.load("distance_matrix/distance_matrix_"+embedding+"_"+PCA_Flag+str(num_samples)+".npy")
+    c_flag = "c_" if c else ""
+
+    distance_matrix = cp.load("distance_matrix/distance_matrix_"+c_flag+embedding+"_"+PCA_Flag+str(num_samples)+".npy")
+    n=num_samples
+    if(c):
+        ##load the categories list
+        import numpy as np
+        categories_list = np.load("categories_list/categories_list_"+str(num_samples)+".npy",allow_pickle=True)
+        categories = sorted(set(categories_list))
+        n= len(categories)
     similarity_matrix = 1 / (1 + distance_matrix)  # Simple similarity measure
     condensed_distance = squareform(distance_matrix.get(), checks=False)
     print(condensed_distance.shape)
+    print(distance_matrix)
 
     #Alogrith 1: Compute the binary tree
     T_linkage=linkage(condensed_distance,method='complete',metric=metric)
@@ -40,7 +52,7 @@ def main(embedding, num_samples, metric,eps,delta,deltaType,PCA):
 
 
     #Algorithm 1.5: transform the linkage matrix into a set of sets
-    labels = [f"{i}" for i in range(num_samples)]
+    labels = [f"{i}" for i in range(n)]
     set_of_sets = linkage_to_set_of_sets(T_linkage, labels)
 
     #Algorithm 2: Trim invalid clusters
@@ -54,7 +66,7 @@ def main(embedding, num_samples, metric,eps,delta,deltaType,PCA):
     print(most_informative_hierarchy)
 
    
-    plot_tree(most_informative_hierarchy)
+    plot_tree(most_informative_hierarchy,num_samples,n)
 
 
 
@@ -116,11 +128,11 @@ def is_valide_cluster_parent(c,p, similarity_matrix, eps, delta):
 def is_valide_cluster_rule(cluster,nonCluster, similarity_matrix, eps, delta):
     if len(nonCluster) == 0:
         return True
-    cluster_items = np.array(list(map(int, cluster)))  # Convert to NumPy array for fast indexing
-    nonCluster_items=np.array(list(map(int, nonCluster)))
+    cluster_items = cp.array(list(map(int, cluster)))  # Convert to NumPy array for fast indexing
+    nonCluster_items=cp.array(list(map(int, nonCluster)))
 
 
-    x_idx, y_idx = np.triu_indices(len(cluster_items), k=1)  # These are relative indices
+    x_idx, y_idx = cp.triu_indices(len(cluster_items), k=1)  # These are relative indices
 
     x, y = cluster_items[x_idx], cluster_items[y_idx]  # Convert to actual elements
     s_xy = similarity_matrix[x, y]
@@ -129,14 +141,14 @@ def is_valide_cluster_rule(cluster,nonCluster, similarity_matrix, eps, delta):
 
 
     # Compute max(s_xz, s_yz)
-    max_s_xz_yz = np.maximum(s_xz, s_yz)  # Shape: (num_pairs, non_cluster_size)
+    max_s_xz_yz = cp.maximum(s_xz, s_yz)  # Shape: (num_pairs, non_cluster_size)
 
 
 
     # Ensure `s_xy` is reshaped correctly for broadcasting
     s_xy = s_xy[:, None]  # Shape: (num_pairs, 1)
 
-    violation_counts = (max_s_xz_yz - s_xy > eps).sum(axis=(0, 1))   
+    violation_counts = (max_s_xz_yz - s_xy > -eps).sum(axis=(0, 1))   
 
 
     if violation_counts  <= delta*(len(cluster_items)*(len(cluster_items)-1)*len(nonCluster_items)/2):
@@ -175,7 +187,8 @@ if __name__ == '__main__':
     parser.add_argument('--eps', type=float, default=0, help='The epsilon value for Algorithm 3')
     parser.add_argument('--delta', type=float, default=0.1, help='The delta value for Algorithm 3')
     parser.add_argument('--deltaType', type=int, default=2, help='The algo use for the detla value')
-    parser.add_argument('--PCA', type=bool, default=True, help='Apply PCA')
+    parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
+    parser.add_argument('--c', type=bool, default=False, help='use categories')
 
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta,args.deltaType,args.PCA)
+    main(args.embedding, args.num_samples, args.metric,args.eps,args.delta,args.deltaType,args.PCA,args.c)

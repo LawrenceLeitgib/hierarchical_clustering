@@ -19,7 +19,7 @@ def tree_set_to_tree(tree_set):
     for i in range(1,len(tree_set)):
         tree_to_tree_set_recursive(root,tree_set[i])
 
-    print_tree(root,0)
+    #print_tree(root,0)
     return root
 
 def tree_to_tree_set_recursive(node,element):
