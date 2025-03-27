@@ -1,18 +1,25 @@
 import networkx as nx
 from scipy.cluster.hierarchy import dendrogram, linkage
 import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import json
+parent_category_to_id = {
+    "Computer Science": 0,
+    "Economics": 1,
+    "Electrical Engineering and Systems Science": 2,
+    "Mathematics": 3,
+    "Physics": 4,
+    "Quantitative Biology": 5,
+    "Quantitative Finance": 6,
+    "Statistics": 7
+}
 
 def build_Linkage_Matrix(tree_set,num_samples):
-
-    #remove from the tree set each element of size 1
-    #print(length)
     tree_set = [x for x in tree_set if len(x) > 1]
-    #print("----------------------------")
-    #print(tree_set)
     linkage_matrix = []
     if(len(tree_set)==1):
         e=tree_set[0]
@@ -86,13 +93,8 @@ def build_Linkage_Matrix(tree_set,num_samples):
 
 
 
-def generate_random_color():
-    """Generate a random RGB color."""
-    return f'#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}'
-
 
 def generate_distinct_colors(n):
-    
     colors = []
     for i in range(n):       
         rgb = mcolors.hsv_to_rgb([i/n, 1, 1])
@@ -102,18 +104,41 @@ def generate_distinct_colors(n):
 def assign_colors(categories):
     """Assign a unique random color to each unique string."""
     color_map = {}
-    result = []
+    colors = []
+    names = []
 
     colorList=generate_distinct_colors(len(set(categories)))
+    with open('resources/categories_name_map.json') as json_file:
+        data = json.load(json_file)
+
 
     i=0
     for s in categories:
         if s not in color_map:
             color_map[s] = colorList[i]
             i+=1
-        result.append(color_map[s])
-    
-    return result
+        
+        colors.append(color_map[s])
+        names.append(data[s][0])
+
+
+    return colors,names
+
+def assign_colors_sub_categories(categories):
+    #load the arxiv_categories_map.json
+    with open('resources/categories_name_map.json') as json_file:
+        data = json.load(json_file)
+    colorList=generate_distinct_colors(len(parent_category_to_id))
+    print(categories)
+    colors = []
+    names = []
+    for subCat in categories:
+        info=data[subCat]
+        color=colorList[parent_category_to_id[info[1]]]
+        colors.append(color)
+        names.append(info[0])
+
+    return colors,names
 
 
 def plot_tree(tree_set,num_samples,n):
@@ -126,10 +151,13 @@ def plot_tree(tree_set,num_samples,n):
     typeList="map_" if n==num_samples else "list_"
 
     category_list = np.load("categories_list/categories_"+typeList+str(num_samples)+".npy",allow_pickle=True)
-    color_list = assign_colors(category_list)
 
+    if(n==num_samples):
+        color_list,category_names = assign_colors(category_list)
+    else:
+        color_list,category_names = assign_colors_sub_categories(category_list)
 
-    fig = plt.figure(figsize=(15, 30))
+    fig = plt.figure(figsize=(10, 30))
 
     dn = dendrogram(T_linkage,orientation='left')
 
@@ -139,11 +167,12 @@ def plot_tree(tree_set,num_samples,n):
     # Get the color of each leaf
     leaf_colors = [color_list[int(i)] for i in leaf_order]
     category_list = [category_list[int(i)] for i in leaf_order]
+    category_names = [category_names[int(i)] for i in leaf_order]
     # Set the color of each leaf    
     for leaf_patch, color in zip(ax.get_yticklabels(), leaf_colors):
         leaf_patch.set_color(color)
    
-    new_labels = [cat for tick, cat in zip(ax.get_yticklabels(), category_list)]
+    new_labels = [cat+"||"+l for cat,l in zip(category_names,category_list)]
 
     # Apply the new labels
     ax.set_yticklabels(new_labels)
@@ -193,6 +222,31 @@ def plot_tree(tree_set,num_samples,n):
     '''
     for coll in ax.collections:
         coll.set_color('black')
+
+
+    #use parent_category_to_id and the color_list to create a legend
+    if n != num_samples:
+        legend_handles = []
+        allcolors = generate_distinct_colors(len(parent_category_to_id))
+        for key, value in parent_category_to_id.items():            
+            patch = mpatches.Patch(color=allcolors[value], label=key)
+            legend_handles.append(patch)
+
+        # Create the legend *outside* the plot
+        plt.legend(
+            handles=legend_handles,
+            title='Parent Categories',
+            facecolor='white',
+            edgecolor='black',
+            bbox_to_anchor=(0.5, 1.05),  # Position the legend at the top center
+            loc='center',  # Align the legend horizontally
+            ncol=1  # Number of columns in the legend
+    )
+     # Adjust layout to make room for the legend
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust the rect to leave space for the lables
+
+
+    plt.title('Dendrogram of Clusters')
 
     plt.draw()  # Ensure the updates are shown.
     plt.savefig('T*.pdf')

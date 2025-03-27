@@ -12,9 +12,7 @@ import cupy as cp
 # Limit managed memory usage to 32GB
 MAX_RAM_USAGE = 32 * (1024**3)/1000  # 32GB in bytes
 cp.cuda.MemoryPool(cp.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
-
 cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
-
 
 from src.plottingTree import plot_tree
 from src.treeSet import Node,tree_set_to_tree
