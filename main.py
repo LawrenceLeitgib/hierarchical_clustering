@@ -22,8 +22,6 @@ from scipy.spatial.distance import squareform
 def main(embedding, num_samples, metric,eps,delta,deltaType,PCA,c):
     print(f"Using embedding: {embedding}")
 
-
-   
     
     PCA_Flag = "PCA_" if PCA else ""
 
@@ -44,9 +42,9 @@ def main(embedding, num_samples, metric,eps,delta,deltaType,PCA,c):
 
     #Alogrith 1: Compute the binary tree
     T_linkage=linkage(condensed_distance,method='complete',metric=metric)
-    fig = plt.figure(figsize=(35, 15))
-    dn = dendrogram(T_linkage)
-    plt.savefig('TF_IDF_T_Linkage.png') 
+    #fig = plt.figure(figsize=(35, 15))
+    #dn = dendrogram(T_linkage)
+    #plt.savefig('TF_IDF_T_Linkage.png') 
 
 
     #Algorithm 1.5: transform the linkage matrix into a set of sets
@@ -65,6 +63,7 @@ def main(embedding, num_samples, metric,eps,delta,deltaType,PCA,c):
 
    
     plot_tree(most_informative_hierarchy,num_samples,n)
+    plot_tree(T_linkage,num_samples,n,isSet=False)
 
 
 

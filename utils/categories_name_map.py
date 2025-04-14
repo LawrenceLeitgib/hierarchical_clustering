@@ -58,6 +58,6 @@ print(tag_to_info['cs.AI'])  # Output: Artificial Intelligence
 
 # Save the dictionary to a JSON file
 
-with open('resources/categories_name_map.json', 'w') as f:
+with open('../resources/categories_name_map.json', 'w') as f:
     json.dump(tag_to_info, f, indent=4)
 

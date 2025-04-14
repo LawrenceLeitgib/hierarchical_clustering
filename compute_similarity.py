@@ -1,17 +1,20 @@
 from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 from sklearn.metrics import pairwise_distances
 
+from sklearn.decomposition import PCA,TruncatedSVD
+
+
 from matplotlib import pyplot as plt
 import json
 import argparse
-import cupy as np
+import numpy as np
 
 
 
 NUMBER_OF_SAMPLE=50
 
 
-def main(embedding, num_samples, metric,PCA,mc,balance):
+def main(embedding, num_samples, metric,PCA,mc,balance,g):
     print(f"Using embedding: {embedding}")
     abstract,categories_dict,categories_list = extract_abstracts_and_categories(num_samples,mc,balance)
 
@@ -25,7 +28,7 @@ def main(embedding, num_samples, metric,PCA,mc,balance):
     else:
         raise ValueError("Invalid embedding type")
     if(PCA):
-        matrix=apply_PCA(matrix)
+        matrix=apply_PCA(matrix,g)
 
     print(matrix.shape)
     
@@ -47,7 +50,7 @@ def main(embedding, num_samples, metric,PCA,mc,balance):
 
     # Adding a title
     plt.title('Pie Chart of Categories')
-    plt.savefig("categories_chart/"+str(num_samples)+"_.png")
+    plt.savefig("out/categories_chart/"+str(num_samples)+"_.png")
 
     PCA_Flag = "PCA_" if PCA else ""
 
@@ -61,7 +64,9 @@ def main(embedding, num_samples, metric,PCA,mc,balance):
         plt.figure(figsize=(10, 6))
         plt.scatter(matrix[:, 0], matrix[:, 1])
         plt.title('PCA Plot')
-        plt.savefig("PCA_plot/"+str(num_samples)+"_.png")
+        plt.savefig("out/PCA_plot/"+str(num_samples)+"_.png")
+
+            
 
 
     
@@ -71,8 +76,10 @@ def extract_abstracts_and_categories(num_samples,mc,balance):
         abstract = []
         categories_dist ={}
         categories_list=[]
-        count=0
+        collected_count=0
+        max_category=mc
         for line in f:
+
             c=json.loads(line)['categories']
             #contiune if c contain a space
             if ' ' in c:
@@ -80,8 +87,7 @@ def extract_abstracts_and_categories(num_samples,mc,balance):
 
             if(len(categories_dist.keys())==mc and c not in categories_dist):
                 continue
-
-            if(categories_dist.get(c,0)>=((1+balance)*(num_samples/mc)) and balance!=-1):
+            if(categories_dist.get(c,0)>=((1+balance)*(num_samples/max_category)) and balance!=-1):
                 continue
 
             abstract.append(json.loads(line)['abstract'])
@@ -91,16 +97,17 @@ def extract_abstracts_and_categories(num_samples,mc,balance):
             else:
                 categories_dist[c]+=1
 
-            count+=1
-            if count==num_samples:
+
+
+            collected_count+=1
+            if(collected_count%100==0):
+                    print("number of samples collected: ",collected_count,"/",num_samples)
+            if collected_count==num_samples:
                 break
   
     return abstract,categories_dist,categories_list
 
 def apply_SVD(matrix):
-    from sklearn.decomposition import TruncatedSVD
-    import numpy as np
-    
     # Determine an upper bound for components: usually min(n_samples, n_features)
     n_components_max = min(matrix.shape)
     
@@ -118,21 +125,39 @@ def apply_SVD(matrix):
     
     print(f"Number of components selected: {n_components_required}")
     return principalComponents
-def apply_PCA(matrix):
-    from sklearn.decomposition import PCA,TruncatedSVD
-    import numpy as np
-       # Determine an upper bound for components: usually min(n_samples, n_features)
-    n_components_max = min(matrix.shape)
-    print(matrix.shape)
+def apply_PCA(matrix,g):
+    if g:
+
+            # Perform PCA
+            pca = PCA()
+            pca.fit(matrix)
+
+            # Get eigenvalues (explained variance)
+            eigenvalues = pca.explained_variance_[:100]
+
+            # Plot eigenvalues on log scale
+            plt.figure(figsize=(8, 5))
+            plt.plot(np.arange(1, len(eigenvalues) + 1), eigenvalues, 'o-', linewidth=2, markersize=6)
+            #plt.yscale('log')  # Logarithmic scale on the y-axis
+            plt.title('Eigenvalues from PCA')
+            plt.xlabel('Principal Component')
+            plt.ylabel('Eigenvalue')
+            plt.grid(True, which="both", ls="--", linewidth=0.5)
+            plt.xticks(np.arange(1, len(eigenvalues) + 1))
+            plt.savefig("out/PCA_eigenValue/"+str(matrix.shape[0])+"_.png")
+
+    # Determine an upper bound for components: usually min(n_samples, n_features)
+    #n_components_max = min(matrix.shape)
+    #print(matrix.shape)
     
     # First, compute SVD with maximum components to get the explained variance ratios
-    svd_full = TruncatedSVD(n_components=n_components_max)
-    svd_full.fit(matrix)
-    cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
+    #svd_full = TruncatedSVD(n_components=n_components_max)
+    #svd_full.fit(matrix)
+    #cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
     
     # Find the smallest number of components that explain at least 90% of the variance
-    n_components_required = np.searchsorted(cumulative_variance, 0.1) + 1
-    pca = PCA(n_components=n_components_required)
+    #n_components_required = np.searchsorted(cumulative_variance, 0.1) + 1
+    pca = PCA(n_components=11)
     principalComponents = pca.fit_transform(matrix)
     return principalComponents
 
@@ -164,7 +189,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=NUMBER_OF_SAMPLE, help='Number of samples to use')
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
     parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
+    parser.add_argument('--g', type=bool, default=False, help='wether to use plot PCA explained variance')
     parser.add_argument('--MC', type=int, default=1000, help='max number of categories')
     parser.add_argument('--balance', type=float, default=-1, help='use to balance the number of categories')
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.PCA,args.MC,args.balance)
+    main(args.embedding, args.num_samples, args.metric,args.PCA,args.MC,args.balance,args.g)

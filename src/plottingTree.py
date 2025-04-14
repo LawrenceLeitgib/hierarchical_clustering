@@ -1,11 +1,9 @@
-import networkx as nx
 from scipy.cluster.hierarchy import dendrogram, linkage
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import json
 parent_category_to_id = {
     "Computer Science": 0,
@@ -21,12 +19,6 @@ parent_category_to_id = {
 def build_Linkage_Matrix(tree_set,num_samples):
     tree_set = [x for x in tree_set if len(x) > 1]
     linkage_matrix = []
-    if(len(tree_set)==1):
-        e=tree_set[0]
-        linkage_matrix.append([int(e[0]), int(e[1]), 1.0, 2])
-        for i in range(2,len(e)):
-            linkage_matrix.append([len(e)+i-2, int(e[i]), 1.0, i+1])
-        return linkage_matrix
 
     offsetArray = [0]*len(tree_set)
     distanceArray = [0]*len(tree_set)
@@ -34,7 +26,7 @@ def build_Linkage_Matrix(tree_set,num_samples):
     for i in range(len(tree_set)):
         e = sorted(tree_set[i])
         if(len(e) ==2):
-            linkage_matrix.append([int(e[0]), int(e[1]), 1.0, len(e)])
+            linkage_matrix.append([int(e[0]), int(e[1]), 1.0, 2])
             distanceArray[i]=1
             index+=1
         else:
@@ -64,7 +56,7 @@ def build_Linkage_Matrix(tree_set,num_samples):
                 diff = diff - set(tree_set[b[0]])
             for el in diff:
                 biggest.append((int(el),False))
-            highest_hight=1
+            highest_hight=0
             for b in biggest:
                if(b[1]):
                    if(distanceArray[b[0]]>highest_hight):
@@ -74,11 +66,22 @@ def build_Linkage_Matrix(tree_set,num_samples):
                 if(j>1):
                     l1=index
                 else :
-                    l1=biggest[0][0]+(num_samples if biggest[0][1] else 0)+offsetArray[biggest[0][0]]
+                    #print("biggest[0][0]",biggest[0][0])
+                    #print("linkage_matrix",linkage_matrix)
+                    #print(len(offsetArray))
+                    
+                    l1=biggest[0][0]+(num_samples +offsetArray[biggest[0][0]]if biggest[0][1] else 0)
                 l2=biggest[j][0]+(num_samples+offsetArray[biggest[j][0]] if biggest[j][1] else 0)
 
+                for el in linkage_matrix:
+                    if(l1 == el[0] or l2 == el[1] or l1 == el[1] or l2 == el[0]):
+                        print("l1",l1)
+                        print("l2",l2)
+                        print("test----------------------------------------")
+                        break
 
-                linkage_matrix.append([l1, l2, highest_hight+1, len(e)])
+
+                linkage_matrix.append([l1, l2, highest_hight+1.0, len(e)])
                 distanceArray[i]=highest_hight+1
                 index+=1
            
@@ -88,7 +91,7 @@ def build_Linkage_Matrix(tree_set,num_samples):
 
 
 
-    #print(linkage_matrix)
+    print(linkage_matrix)
     return linkage_matrix
 
 
@@ -97,7 +100,7 @@ def build_Linkage_Matrix(tree_set,num_samples):
 def generate_distinct_colors(n):
     colors = []
     for i in range(n):       
-        rgb = mcolors.hsv_to_rgb([i/n, 1, 1])
+        rgb = mcolors.hsv_to_rgb([i/n, 1, 0.6])
         colors.append(tuple(rgb))  # Convert to tuple for easy use
     return colors
 
@@ -141,11 +144,15 @@ def assign_colors_sub_categories(categories):
     return colors,names
 
 
-def plot_tree(tree_set,num_samples,n):
+def plot_tree(tree,num_samples,n,isSet=True):
     """
     Plot the tree using networkx and matplotlib.
     """
-    T_linkage = build_Linkage_Matrix(tree_set,n)
+    if(isSet):
+        T_linkage = build_Linkage_Matrix(tree,n)
+    else:
+        T_linkage = tree
+
     #color each singleton cluster base on the category list
 
     typeList="map_" if n==num_samples else "list_"
@@ -157,7 +164,7 @@ def plot_tree(tree_set,num_samples,n):
     else:
         color_list,category_names = assign_colors_sub_categories(category_list)
 
-    fig = plt.figure(figsize=(10, 30))
+    fig = plt.figure(figsize=(12, 29))
 
     dn = dendrogram(T_linkage,orientation='left')
 
@@ -174,52 +181,18 @@ def plot_tree(tree_set,num_samples,n):
    
     new_labels = [cat+"||"+l for cat,l in zip(category_names,category_list)]
 
+
+  
     # Apply the new labels
     ax.set_yticklabels(new_labels)
 
-
-    '''
+      #change the font size of the lables
+    for label in ax.get_yticklabels():
+        label.set_fontsize(12)
     
 
-    # Create a mapping from tick x positions to leaf colors.
-    # Using the positions of the tick labels (they are in the same order as leaf_colors).
-    tick_positions = ax.get_yticks()  # These are typically in order.
-    # Set a tolerance for matching a segment point to a tick.
-    tol = 0.1
-
-    #get the x position of the last leaf
-    x_pos = ax.get_yticks()[-1]
-
-    print(tick_positions)
-    print(ax.get_xticks())
 
 
-    # --- Begin edge color modifications using LineCollections ---
-    for coll in ax.collections:
-        segments = coll.get_segments()
-        new_colors = []  # one color per segment in this collection.
-        for seg in segments:
-            # Default color is black.
-            seg_color = "black"
-            setblack=False
-            for point in seg:
-                # Compare this point's x coordinate to each tick position.
-                if(point[0]<x_pos-tol-1):
-                    continue
-                for idx, tick in enumerate(tick_positions):
-                    if abs(point[0] - tick) < tol:
-                        if(seg_color != "black" and leaf_colors[idx] != seg_color):
-                            setblack=True
-                        seg_color = leaf_colors[idx]
-                        break
-                if setblack:
-                    break
-            if(setblack):
-                seg_color = "black"
-            new_colors.append(seg_color)
-        coll.set_color(new_colors)
-    # --- End edge color modifications ---'
-    '''
     for coll in ax.collections:
         coll.set_color('black')
 
@@ -249,6 +222,9 @@ def plot_tree(tree_set,num_samples,n):
     plt.title('Dendrogram of Clusters')
 
     plt.draw()  # Ensure the updates are shown.
-    plt.savefig('T*.pdf')
+    if(isSet):
+        plt.savefig('out/T_Star.pdf')
+    else:
+        plt.savefig('out/T_Binary.pdf')
 
 
