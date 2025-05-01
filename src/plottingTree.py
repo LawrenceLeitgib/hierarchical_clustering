@@ -1,6 +1,16 @@
 from scipy.cluster.hierarchy import dendrogram, linkage
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+from sknetwork.visualization import visualize_dendrogram
+
+from sknetwork.data import load_netset
+from sknetwork.ranking import PageRank, top_k
+from bs4 import BeautifulSoup
+
+import matplotlib.image as mpimg
+from io import BytesIO
+import cairosvg
+
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -144,7 +154,7 @@ def assign_colors_sub_categories(categories):
     return colors,names
 
 
-def plot_tree(tree,num_samples,n,isSet=True):
+def plot_tree(tree,num_samples,n,dataset,isSet=True):
     """
     Plot the tree using networkx and matplotlib.
     """
@@ -153,70 +163,103 @@ def plot_tree(tree,num_samples,n,isSet=True):
     else:
         T_linkage = tree
 
-    #color each singleton cluster base on the category list
-
-    typeList="map_" if n==num_samples else "list_"
-
-    category_list = np.load("categories_list/categories_"+typeList+str(num_samples)+".npy",allow_pickle=True)
-
-    if(n==num_samples):
-        color_list,category_names = assign_colors(category_list)
-    else:
-        color_list,category_names = assign_colors_sub_categories(category_list)
-
     fig = plt.figure(figsize=(12, 29))
-
     dn = dendrogram(T_linkage,orientation='left')
 
-    ax = plt.gca()
-    # Get the leaf order from the dendrogram
-    leaf_order = dn['leaves']
-    # Get the color of each leaf
-    leaf_colors = [color_list[int(i)] for i in leaf_order]
-    category_list = [category_list[int(i)] for i in leaf_order]
-    category_names = [category_names[int(i)] for i in leaf_order]
-    # Set the color of each leaf    
-    for leaf_patch, color in zip(ax.get_yticklabels(), leaf_colors):
-        leaf_patch.set_color(color)
-   
-    new_labels = [cat+"||"+l for cat,l in zip(category_names,category_list)]
+
+    #color each singleton cluster base on the category list
+    if(dataset == "wikipedia"):
+      
+
+        names2=np.load(f"wikipedia_labels/wikivitals_names_{num_samples}.npy",allow_pickle=True)
 
 
-  
-    # Apply the new labels
-    ax.set_yticklabels(new_labels)
+        image = visualize_dendrogram(np.array(T_linkage), names=names2, rotate=True, scale=4, n_clusters=4)
 
-      #change the font size of the lables
-    for label in ax.get_yticklabels():
-        label.set_fontsize(12)
+        soup = BeautifulSoup(image, "xml")
+        svg_tag = soup.find("svg")
+
+        # Add a white background rectangle as the first element
+        if svg_tag:
+            bg_rect = soup.new_tag("rect", x="0", y="0", width="100%", height="100%", fill="white")
+            svg_tag.insert(0, bg_rect)
+        # Save modified SVG
+        with open("dendrogram.svg", "w", encoding="utf-8") as f:
+            f.write(str(soup))
+
     
 
+        # Show image
+        #plt.imshow(img)
+        if(isSet):
+            with open("out/T_Star.svg", "w", encoding="utf-8") as f:
+                f.write(str(soup))
+        else:
+            with open("out/T_Binary.svg", "w", encoding="utf-8") as f:
+                f.write(str(soup))
+        return
+    else:
+
+        typeList="map_" if n==num_samples else "list_"
+
+        category_list = np.load("categories_list/categories_"+typeList+str(num_samples)+".npy",allow_pickle=True)
+
+        if(n==num_samples):
+            color_list,category_names = assign_colors(category_list)
+        else:
+            color_list,category_names = assign_colors_sub_categories(category_list)
 
 
-    for coll in ax.collections:
-        coll.set_color('black')
+
+        ax = plt.gca()
+        # Get the leaf order from the dendrogram
+        leaf_order = dn['leaves']
+        # Get the color of each leaf
+        leaf_colors = [color_list[int(i)] for i in leaf_order]
+        category_list = [category_list[int(i)] for i in leaf_order]
+        category_names = [category_names[int(i)] for i in leaf_order]
+        # Set the color of each leaf    
+        for leaf_patch, color in zip(ax.get_yticklabels(), leaf_colors):
+            leaf_patch.set_color(color)
+    
+        new_labels = [cat+"||"+l for cat,l in zip(category_names,category_list)]
 
 
-    #use parent_category_to_id and the color_list to create a legend
-    if n != num_samples:
-        legend_handles = []
-        allcolors = generate_distinct_colors(len(parent_category_to_id))
-        for key, value in parent_category_to_id.items():            
-            patch = mpatches.Patch(color=allcolors[value], label=key)
-            legend_handles.append(patch)
+    
+        # Apply the new labels
+        ax.set_yticklabels(new_labels)
 
-        # Create the legend *outside* the plot
-        plt.legend(
-            handles=legend_handles,
-            title='Parent Categories',
-            facecolor='white',
-            edgecolor='black',
-            bbox_to_anchor=(0.5, 1.05),  # Position the legend at the top center
-            loc='center',  # Align the legend horizontally
-            ncol=1  # Number of columns in the legend
-    )
-     # Adjust layout to make room for the legend
-    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust the rect to leave space for the lables
+        #change the font size of the lables
+        for label in ax.get_yticklabels():
+            label.set_fontsize(12)
+        
+
+
+
+        for coll in ax.collections:
+            coll.set_color('black')
+
+
+        #use parent_category_to_id and the color_list to create a legend
+        if n != num_samples:
+            legend_handles = []
+            allcolors = generate_distinct_colors(len(parent_category_to_id))
+            for key, value in parent_category_to_id.items():            
+                patch = mpatches.Patch(color=allcolors[value], label=key)
+                legend_handles.append(patch)
+
+            # Create the legend *outside* the plot
+            plt.legend(
+                handles=legend_handles,
+                title='Parent Categories',
+                facecolor='white',
+                edgecolor='black',
+                bbox_to_anchor=(0.5, 1.05),  # Position the legend at the top center
+                loc='center',  # Align the legend horizontally
+                ncol=1  # Number of columns in the legend
+        )
+        # Adjust layout to make room for the legend
+        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust the rect to leave space for the lables
 
 
     plt.title('Dendrogram of Clusters')

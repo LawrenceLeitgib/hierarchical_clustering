@@ -1,42 +1,49 @@
-from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics import pairwise_distances
-
-from sklearn.decomposition import PCA,TruncatedSVD
-
+from sklearn.decomposition import PCA, TruncatedSVD
 
 from matplotlib import pyplot as plt
 import json
 import argparse
 import numpy as np
 
+NUMBER_OF_SAMPLE = 50
 
+def main(args):
+    print(f"Using embedding: {args.embedding}")
 
-NUMBER_OF_SAMPLE=50
+    abstract, categories_dict, categories_list = extract_abstracts_and_categories(
+        args.num_samples, args.MC, args.balance
+    )
 
-
-def main(embedding, num_samples, metric,PCA,mc,balance,g):
-    print(f"Using embedding: {embedding}")
-    abstract,categories_dict,categories_list = extract_abstracts_and_categories(num_samples,mc,balance)
-
-    #Embedding the abstracts
-    if embedding == 'TF-IDF':
+    # Embedding the abstracts
+    if args.embedding == 'TF-IDF':
         vectorizer = TfidfVectorizer()
         matrix = vectorizer.fit_transform(abstract)
-        
-    elif embedding == 'BM25':
-        matrix,vectorizer=bm25_transform(abstract)
+    elif args.embedding == 'BM25':
+        matrix, vectorizer = bm25_transform(abstract)
+    elif args.embedding == 'Word2Vec':
+        from gensim.models import Word2Vec
+        tokenized_abstracts = [doc.split() for doc in abstract]
+        model = Word2Vec(tokenized_abstracts, vector_size=100, window=5, min_count=1, workers=4)
+        matrix = np.array([
+            np.mean([model.wv[word] for word in doc if word in model.wv], axis=0)
+            for doc in tokenized_abstracts
+        ])
     else:
         raise ValueError("Invalid embedding type")
-    if(PCA):
-        matrix=apply_PCA(matrix,g)
+
+    if args.PCA:
+        matrix = apply_PCA(matrix, args.g)
 
     print(matrix.shape)
-    
-    distance_matrix = pairwise_distances(matrix, metric=metric)
+
+    distance_matrix = pairwise_distances(matrix, metric=args.metric)
+
     # Extracting labels and values
     new_categories = {}
     for key, value in categories_dict.items():
-        if(value >= num_samples*0.01):
+        if value >= args.num_samples * 0.01:
             new_categories[key] = value
         else:
             new_categories['Other'] = new_categories.get('Other', 0) + value
@@ -44,136 +51,90 @@ def main(embedding, num_samples, metric,PCA,mc,balance,g):
     labels = list(new_categories.keys())
     values = list(new_categories.values())
 
-    # Creating the pie chart
     plt.figure(figsize=(10, 6))
     plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140, wedgeprops={'edgecolor': 'black'})
-
-    # Adding a title
     plt.title('Pie Chart of Categories')
-    plt.savefig("out/categories_chart/"+str(num_samples)+"_.png")
+    plt.savefig(f"out/categories_chart/{args.num_samples}_.png")
 
-    PCA_Flag = "PCA_" if PCA else ""
+    PCA_Flag = "PCA_" if args.PCA else ""
+    np.save(f"distance_matrix/distance_matrix_{args.embedding}_{PCA_Flag}{args.num_samples}.npy", distance_matrix)
+    np.save(f"categories_list/categories_map_{args.num_samples}.npy", categories_list)
 
-
-    np.save("distance_matrix/distance_matrix_"+embedding+"_"+PCA_Flag+str(num_samples)+".npy", distance_matrix)
-    np.save("categories_list/categories_map_"+str(num_samples)+".npy", categories_list)
-
-
-    #creat the PCA plot
-    if(PCA):
+    if args.PCA:
         plt.figure(figsize=(10, 6))
         plt.scatter(matrix[:, 0], matrix[:, 1])
         plt.title('PCA Plot')
-        plt.savefig("out/PCA_plot/"+str(num_samples)+"_.png")
-
-            
+        plt.savefig(f"out/PCA_plot/{args.num_samples}_.png")
 
 
-    
-
-def extract_abstracts_and_categories(num_samples,mc,balance):
+def extract_abstracts_and_categories(num_samples, mc, balance):
     with open('resources/arxiv-metadata-oai-snapshot.json') as f:
         abstract = []
-        categories_dist ={}
-        categories_list=[]
-        collected_count=0
-        max_category=mc
-        for line in f:
+        categories_dist = {}
+        categories_list = []
+        collected_count = 0
 
-            c=json.loads(line)['categories']
-            #contiune if c contain a space
+        for line in f:
+            c = json.loads(line)['categories']
             if ' ' in c:
                 continue
-
-            if(len(categories_dist.keys())==mc and c not in categories_dist):
+            if len(categories_dist) == mc and c not in categories_dist:
                 continue
-            if(categories_dist.get(c,0)>=((1+balance)*(num_samples/max_category)) and balance!=-1):
+            if categories_dist.get(c, 0) >= ((1 + balance) * (num_samples / mc)) and balance != -1:
                 continue
 
             abstract.append(json.loads(line)['abstract'])
-            categories_list.append(json.loads(line)['categories'])
-            if c not in categories_dist:
-                categories_dist[c]=1
-            else:
-                categories_dist[c]+=1
+            categories_list.append(c)
+            categories_dist[c] = categories_dist.get(c, 0) + 1
 
-
-
-            collected_count+=1
-            if(collected_count%100==0):
-                    print("number of samples collected: ",collected_count,"/",num_samples)
-            if collected_count==num_samples:
+            collected_count += 1
+            if collected_count % 100 == 0:
+                print("number of samples collected:", collected_count, "/", num_samples)
+            if collected_count == num_samples:
                 break
-  
-    return abstract,categories_dist,categories_list
+
+    return abstract, categories_dist, categories_list
+
 
 def apply_SVD(matrix):
-    # Determine an upper bound for components: usually min(n_samples, n_features)
     n_components_max = min(matrix.shape)
-    
-    # First, compute SVD with maximum components to get the explained variance ratios
     svd_full = TruncatedSVD(n_components=n_components_max)
     svd_full.fit(matrix)
     cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
-    
-    # Find the smallest number of components that explain at least 90% of the variance
     n_components_required = np.searchsorted(cumulative_variance, 0) + 2
-    
-    # Now run TruncatedSVD with the selected number of components
     svd = TruncatedSVD(n_components=n_components_required)
     principalComponents = svd.fit_transform(matrix)
-    
     print(f"Number of components selected: {n_components_required}")
     return principalComponents
-def apply_PCA(matrix,g):
+
+
+def apply_PCA(matrix, g):
     if g:
+        pca = PCA()
+        pca.fit(matrix)
+        eigenvalues = pca.explained_variance_[:100]
+        plt.figure(figsize=(8, 5))
+        plt.plot(np.arange(1, len(eigenvalues) + 1), eigenvalues, 'o-', linewidth=2, markersize=6)
+        plt.title('Eigenvalues from PCA')
+        plt.xlabel('Principal Component')
+        plt.ylabel('Eigenvalue')
+        plt.grid(True, which="both", ls="--", linewidth=0.5)
+        plt.xticks(np.arange(1, len(eigenvalues) + 1))
+        plt.savefig(f"out/PCA_eigenValue/{matrix.shape[0]}_.png")
 
-            # Perform PCA
-            pca = PCA()
-            pca.fit(matrix)
-
-            # Get eigenvalues (explained variance)
-            eigenvalues = pca.explained_variance_[:100]
-
-            # Plot eigenvalues on log scale
-            plt.figure(figsize=(8, 5))
-            plt.plot(np.arange(1, len(eigenvalues) + 1), eigenvalues, 'o-', linewidth=2, markersize=6)
-            #plt.yscale('log')  # Logarithmic scale on the y-axis
-            plt.title('Eigenvalues from PCA')
-            plt.xlabel('Principal Component')
-            plt.ylabel('Eigenvalue')
-            plt.grid(True, which="both", ls="--", linewidth=0.5)
-            plt.xticks(np.arange(1, len(eigenvalues) + 1))
-            plt.savefig("out/PCA_eigenValue/"+str(matrix.shape[0])+"_.png")
-
-    # Determine an upper bound for components: usually min(n_samples, n_features)
-    #n_components_max = min(matrix.shape)
-    #print(matrix.shape)
-    
-    # First, compute SVD with maximum components to get the explained variance ratios
-    #svd_full = TruncatedSVD(n_components=n_components_max)
-    #svd_full.fit(matrix)
-    #cumulative_variance = np.cumsum(svd_full.explained_variance_ratio_)
-    
-    # Find the smallest number of components that explain at least 90% of the variance
-    #n_components_required = np.searchsorted(cumulative_variance, 0.1) + 1
-    pca = PCA(n_components=11)
-    principalComponents = pca.fit_transform(matrix)
-    return principalComponents
+    pca = PCA(n_components=2)
+    return pca.fit_transform(matrix)
 
 
 def bm25_transform(corpus, k1=1.5, b=0.75):
     vectorizer = CountVectorizer()
-    term_freq_matrix = vectorizer.fit_transform(corpus)  # Get raw term frequencies
-    doc_lengths = np.array(term_freq_matrix.sum(axis=1)).flatten()  # Convert to NumPy array
-    avg_doc_length = np.mean(doc_lengths)  # Average document length
-
-    # Compute IDF values
-    df = np.array((term_freq_matrix > 0).sum(axis=0)).flatten()  # Convert sparse to dense
+    term_freq_matrix = vectorizer.fit_transform(corpus)
+    doc_lengths = np.array(term_freq_matrix.sum(axis=1)).flatten()
+    avg_doc_length = np.mean(doc_lengths)
+    df = np.array((term_freq_matrix > 0).sum(axis=0)).flatten()
     total_docs = len(corpus)
-    idf = np.log((total_docs - df + 0.5) / (df + 0.5) + 1)  # BM25 IDF formula
+    idf = np.log((total_docs - df + 0.5) / (df + 0.5) + 1)
 
-    # Compute BM25 scores
     bm25_matrix = []
     for i in range(total_docs):
         row = term_freq_matrix[i].toarray().flatten()
@@ -183,14 +144,16 @@ def bm25_transform(corpus, k1=1.5, b=0.75):
 
     return np.array(bm25_matrix), vectorizer
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify embedding type.')
     parser.add_argument('--embedding', type=str, default='TF-IDF', help='The type of embedding to use')
     parser.add_argument('--num_samples', type=int, default=NUMBER_OF_SAMPLE, help='Number of samples to use')
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
     parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
-    parser.add_argument('--g', type=bool, default=False, help='wether to use plot PCA explained variance')
-    parser.add_argument('--MC', type=int, default=1000, help='max number of categories')
-    parser.add_argument('--balance', type=float, default=-1, help='use to balance the number of categories')
+    parser.add_argument('--g', type=bool, default=False, help='Whether to plot PCA explained variance')
+    parser.add_argument('--MC', type=int, default=1000, help='Max number of categories')
+    parser.add_argument('--balance', type=float, default=-1, help='Balance the number of categories')
+
     args = parser.parse_args()
-    main(args.embedding, args.num_samples, args.metric,args.PCA,args.MC,args.balance,args.g)
+    main(args)
