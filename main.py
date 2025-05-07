@@ -35,42 +35,11 @@ def main(args):
     print(f"Using embedding: {args.embedding}")
     n = args.num_samples
 
-
-    if(args.dataset=="wikipedia"):
-        import numpy as np
-
-
-        wikivitals = load_netset('wikivitals')
-        adjacency = wikivitals.adjacency
-        names = wikivitals.names
-        labels = wikivitals.labels
-        names_labels = wikivitals.names_labels
-        label_id = {name: i for i, name in enumerate(names_labels)}
-        pagerank = PageRank()
-        n_selection = args.num_samples
-        # selection of articles
-        selection = []
-        for label in np.arange(len(names_labels)):
-            ppr = pagerank.fit_predict(adjacency, weights=(labels==label))
-            scores = ppr * (labels==label)
-            selection.append(top_k(scores, n_selection))
-        selection = np.array(selection)
-
-        n_components = 20
-        # embedding
-        spectral = Spectral(n_components)
-        embedding = spectral.fit_transform(adjacency)
-        print(embedding.shape)
-        label = label_id['Physical sciences']
-        index = selection[label]
-        T_linkage = linkage(embedding[index], method='ward')
-
-
-    PCA_Flag = "PCA_" if args.PCA else ""
-    c_flag = "c_" if args.dataset=="categories" else ""
     if(args.dataset=="wikipedia"):
         distance_matrix = cp.load(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy")
     else:
+        PCA_Flag = "PCA_" if args.PCA else ""
+        c_flag = "c_" if args.dataset=="categories" else ""
         distance_matrix = cp.load(f"distance_matrix/distance_matrix_{c_flag}{args.embedding}_{PCA_Flag}{args.num_samples}.npy")
 
     if args.dataset=="categories":

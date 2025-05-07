@@ -122,7 +122,7 @@ def apply_PCA(matrix, g):
         plt.xticks(np.arange(1, len(eigenvalues) + 1))
         plt.savefig(f"out/PCA_eigenValue/{matrix.shape[0]}_.png")
 
-    pca = PCA(n_components=2)
+    pca = PCA(n_components=5)
     return pca.fit_transform(matrix)
 
 
