@@ -1,33 +1,18 @@
 from typing import Union
 from sklearn.metrics import pairwise_distances
-
-
-from IPython.display import SVG
-
 import numpy as np
-from scipy.cluster.hierarchy import linkage
-
 
 from sknetwork.data import load_netset
 from sknetwork.ranking import PageRank, top_k
 from sknetwork.embedding import Spectral
-from sknetwork.visualization import visualize_dendrogram
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import pairwise_distances
-from compute_similarity import bm25_transform, apply_PCA, extract_abstracts_and_categories
+from compute_abstract_similarity import bm25_transform, apply_PCA
 
 
 import json
 from pathlib import Path
 from typing import Iterable, List, Tuple, Union, Dict
-
-
-
-
-from matplotlib import pyplot as plt
-import matplotlib.image as mpimg
-from io import BytesIO
-import cairosvg
 
 import argparse
 import numpy as np
@@ -68,14 +53,15 @@ def main(args):
         label = label_id[category]
         c=(n_selection*(i+1))//11-(n_selection*i)//11
         t+=c
-    
+
         index.append(selection[label][:c])
         i+=1
     index = [item for sublist in index for item in sublist]
+    print(index)
+   # index=range(len(index))
 
     print(t)
     print(len(index))
-    dendrogram_articles = linkage(embedding[(index)], method='ward')
 
 
     new_names = []
@@ -87,11 +73,14 @@ def main(args):
     distance_matrix = pairwise_distances(embedding[index], metric=args.metric)
     np.save(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy", distance_matrix)
 
+
     #load the leads
     leads = extractLead(new_names, jsonl_path="utils/vital_abstracts.jsonl")
-    for l in leads:
-        print(l[:50])
-     # Embedding the abstracts
+
+    for i,l in enumerate(leads):
+        if(len(l) <100):
+            print(new_names[i],l)
+
     if args.embedding == 'TF-IDF':
         vectorizer = TfidfVectorizer()
         matrix = vectorizer.fit_transform(leads)
@@ -113,17 +102,9 @@ def main(args):
 
     print(matrix.shape)
     distance_matrix = pairwise_distances(matrix, metric=args.metric)
+    np.save(f"distance_matrix/distance_matrix_wl_{args.num_samples}.npy", distance_matrix)
 
-    #print(dendrogram_articles)
-    #image = visualize_dendrogram(dendrogram_articles, names=new_names, rotate=True, width=200, scale=2, n_clusters=4)
 
-    # Convert SVG string to PNG
-   # png_data = cairosvg.svg2png(bytestring=image.encode('utf-8'))
-    #img = mpimg.imread(BytesIO(png_data), format='png')
-
-    # Show image
-    #plt.imshow(img)
-    #plt.axis('off')
 
 
 def _load_leads(jsonl_path: Union[str, Path]) -> Dict[str, str]:
@@ -175,7 +156,6 @@ def extractLead(
         try:
             leads.append(lookup[title])
         except KeyError:
-            continue #TOREMOVE
             if default is None:
                 raise KeyError(f"Title '{title}' not found in {jsonl_path}") from None
             leads.append(default)

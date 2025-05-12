@@ -41,7 +41,7 @@ OUT_DIR.mkdir(exist_ok=True)
 USER_AGENT = (
     "(clustering research; contact: lawrence.leitgib@epfl.ch)"
 )
-REQUEST_DELAY = 1.0          # seconds between *successful* requests
+REQUEST_DELAY = 0.001          # seconds between *successful* requests
 MAX_RETRIES = 3              # network retries per page
 TIMEOUT = 30                 # seconds for the HTTP request
 
@@ -76,10 +76,14 @@ def fetch_xml(page_title: str) -> bytes:
 def download_all(titles: Iterable[str]) -> None:
     count = 0
     for title in tqdm(titles, desc="Downloading", ncols=90):
+        if(count<=2611):
+            count+=1
+            continue
         fn = OUT_DIR / f"{count}.xml"
 
         # Skip if already present and > 0 B
         if fn.exists() and fn.stat().st_size:
+            count+=1
             continue
 
         # Try up to MAX_RETRIES times

@@ -36,7 +36,10 @@ def main(args):
     n = args.num_samples
 
     if(args.dataset=="wikipedia"):
-        distance_matrix = cp.load(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy")
+        if(args.lead):
+            distance_matrix = cp.load(f"distance_matrix/distance_matrix_wl_{args.num_samples}.npy")
+        else:
+            distance_matrix = cp.load(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy")
     else:
         PCA_Flag = "PCA_" if args.PCA else ""
         c_flag = "c_" if args.dataset=="categories" else ""
@@ -156,6 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--deltaType', type=int, default=2, help='The algo use for the delta value')
     parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
     parser.add_argument('--dataset', type=str, default="abstract", help='use categories')
+    parser.add_argument('--lead', type=bool, default=False, help='use lead or not')
 
     args = parser.parse_args()
     main(args)
