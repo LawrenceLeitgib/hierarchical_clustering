@@ -57,12 +57,8 @@ def main(args):
         index.append(selection[label][:c])
         i+=1
     index = [item for sublist in index for item in sublist]
-    print(index)
-   # index=range(len(index))
 
-    print(t)
-    print(len(index))
-
+    assert(t==len(index))
 
     new_names = []
     for i in index:
@@ -74,8 +70,10 @@ def main(args):
     np.save(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy", distance_matrix)
 
 
+
+
     #load the leads
-    leads = extractLead(new_names, jsonl_path="utils/vital_abstracts.jsonl")
+    leads = extractLead(new_names, jsonl_path="resources/vital_abstracts.jsonl")
 
     for i,l in enumerate(leads):
         if(len(l) <100):
@@ -120,7 +118,7 @@ def _load_leads(jsonl_path: Union[str, Path]) -> Dict[str, str]:
 def extractLead(
     article_tuples: Iterable[Tuple[str, ...]],
     *,
-    jsonl_path: Union[str, Path] = "utils/vital_abstracts.jsonl",
+    jsonl_path: Union[str, Path] = "resources/vital_abstracts.jsonl",
     default: str | None = None,
 ) -> List[str]:
     """Return a list of lead texts that matches *article_tuples* order.

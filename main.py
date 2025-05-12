@@ -55,7 +55,6 @@ def main(args):
     condensed_distance = squareform(distance_matrix.get(), checks=False)
 
     print(condensed_distance.shape)
-    print(distance_matrix)
 
     # Algorithm 1: Compute the binary tree
     T_linkage = linkage(condensed_distance, method='complete', metric=args.metric)
