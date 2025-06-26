@@ -10,8 +10,7 @@ import numpy as np
 NUMBER_OF_SAMPLE = 100
 
 def main(args):
-    print(f"Using embedding: {args.embedding}")
-
+    create_all_directories()
     abstract, categories_dict, categories_list = extract_abstracts_and_categories(
         args.num_samples, args.MC, args.balance
     )
@@ -67,6 +66,23 @@ def main(args):
         plt.scatter(matrix[:, 0], matrix[:, 1])
         plt.title('PCA Plot')
         plt.savefig(f"out/PCA_plot/{args.num_samples}_.png")
+
+def create_all_directories():
+    """
+    Create all necessary directories for saving outputs.
+    """
+    import os
+    directories = [
+        "distance_matrix",
+        "categories_list",
+        "true_categories",
+        "out/categories_chart",
+        "out/PCA_plot",
+        "out/PCA_eigenValue"
+    ]
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
 def get_true_categories(categories_list):
     """

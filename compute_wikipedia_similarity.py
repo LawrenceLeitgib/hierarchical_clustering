@@ -7,7 +7,7 @@ from sknetwork.ranking import PageRank, top_k
 from sknetwork.embedding import Spectral
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import pairwise_distances
-from compute_paper_to_paper_similarity import bm25_transform, apply_PCA
+from compute_paper_to_paper_similarity import bm25_transform, apply_PCA, create_all_directories
 
 
 import json
@@ -24,6 +24,7 @@ import numpy as np
 NUMBER_OF_SAMPLE=10000
 
 def main(args):
+    create_all_directories()
     wikivitals = load_netset('wikivitals')
     adjacency = wikivitals.adjacency
     labels = wikivitals.labels

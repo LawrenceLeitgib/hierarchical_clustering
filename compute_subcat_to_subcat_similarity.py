@@ -1,7 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import pairwise_distances
 from collections import defaultdict
-from compute_paper_to_paper_similarity import bm25_transform, apply_PCA, extract_abstracts_and_categories
+from compute_paper_to_paper_similarity import bm25_transform, apply_PCA, extract_abstracts_and_categories, create_all_directories
 import json
 from matplotlib import pyplot as plt
 import argparse
@@ -18,7 +18,7 @@ NUMBER_OF_SUB_CAT = n_categories
 
 
 def main(args):
-    print(f"Using embedding: {args.embedding}")
+    create_all_directories()
     abstract, categories_dict, categories_list = extract_abstracts_and_categories(
         args.num_samples, args.MC, args.balance
     )
