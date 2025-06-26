@@ -89,19 +89,10 @@ def build_Linkage_Matrix(tree_set,num_samples ):
                 if(j>1):
                     l1=index
                 else :
-                    #print("biggest[0][0]",biggest[0][0])
-                    #print("linkage_matrix",linkage_matrix)
-                    #print(len(offsetArray))
+        
                     
                     l1=biggest[0][0]+(num_samples +offsetArray[biggest[0][0]]if biggest[0][1] else 0)
                 l2=biggest[j][0]+(num_samples+offsetArray[biggest[j][0]] if biggest[j][1] else 0)
-
-                for el in linkage_matrix:
-                    if(l1 == el[0] or l2 == el[1] or l1 == el[1] or l2 == el[0]):
-                        print("l1",l1)
-                        print("l2",l2)
-                        print("test----------------------------------------")
-                        break
 
 
                 linkage_matrix.append([l1, l2, highest_hight+1.0, len(e)])
@@ -114,7 +105,6 @@ def build_Linkage_Matrix(tree_set,num_samples ):
 
 
 
-    print(linkage_matrix)
     return linkage_matrix
 
 
@@ -132,6 +122,7 @@ def assign_colors(categories):
     color_map = {}
     colors = []
     names = []
+    true_labels = []
 
     colorList=generate_distinct_colors(len(set(categories)))
     with open('resources/categories_name_map.json') as json_file:
@@ -141,44 +132,83 @@ def assign_colors(categories):
     i=0
     for s in categories:
         if s not in color_map:
-            color_map[s] = colorList[i]
+            color_map[s] = (colorList[i],i)
             i+=1
         
-        colors.append(color_map[s])
+        colors.append(color_map[s][0])
         names.append(data[s][0])
+        true_labels.append(color_map[s][1])
 
 
-    return colors,names
+    return colors,names,true_labels
 
 def assign_colors_sub_categories(categories):
     #load the arxiv_categories_map.json
     with open('resources/categories_name_map.json') as json_file:
         data = json.load(json_file)
     colorList=generate_distinct_colors(len(parent_category_to_id))
-    print(categories)
     colors = []
     names = []
+    trueLabels = []
     for subCat in categories:
         info=data[subCat]
         color=colorList[parent_category_to_id[info[1]]]
         colors.append(color)
         names.append(info[0])
+        trueLabels.append(parent_category_to_id[info[1]])
 
-    return colors,names
+    return colors,names,trueLabels
 def assign_colors_wikipedia(categories):
 
     colorList=generate_distinct_colors(len(wikipedia_categoriy_to_id))
     colors = []
     names = []
+    true_labels = []
     for el in categories:
         names.append(el[0])
         color=colorList[wikipedia_categoriy_to_id[el[1]]]
         colors.append(color)
+        true_labels.append(wikipedia_categoriy_to_id[el[1]])
 
-    return colors,names
+    return colors,names,true_labels
 
 
-def plot_tree(tree,num_samples,n,dataset,isSet=True):
+import higra as hg
+
+def sets_to_higra_tree(list_of_sets):
+    # 1) sort nodes by size ascending (so leaves first)
+    #    tie-break by converting to sorted tuple for reproducibility
+ 
+        
+    nodes = list(list_of_sets)
+    #order = sorted(range(len(nodes)),
+    #               key=lambda i: (len(nodes[i]), tuple(sorted(nodes[i]))))
+    #nodes = [nodes[i] for i in order]
+
+    n = len(nodes)
+    parents = np.empty(n, dtype=int)
+
+    # 2) for each node i, find the minimal j>i s.t. nodes[i] ⊆ nodes[j]
+    for i in range(n):
+        supers = [j for j in range(i+1, n)
+                  if set(nodes[i]).issubset(set(nodes[j]))]
+        if supers:
+            # pick the one with smallest size (they’re already sorted by size)
+            parents[i] = supers[0]
+        else:
+            # no superset ⇒ this must be the root
+            parents[i] = i
+
+    # 3) ensure root points to itself
+    root = np.argmax([len(s) for s in nodes])
+    parents[root] = root
+
+    # 4) construct the Higra tree
+    tree = hg.Tree(parents)
+    return tree
+
+
+def plot_tree(tree,num_samples,n,dataset,isSet=True,optionalSet=None,name="T.pdf"):
     """
     Plot the tree using networkx and matplotlib.
     """
@@ -197,19 +227,17 @@ def plot_tree(tree,num_samples,n,dataset,isSet=True):
 
     if(dataset=="wikipedia"):
         category_list = np.load(f"wikipedia_labels/wikivitals_names_{num_samples}.npy",allow_pickle=True)
-        print(category_list)
-        print("------------------$$$$$------")
     else:
         typeList="map_" if n==num_samples else "list_"
         category_list = np.load("categories_list/categories_"+typeList+str(num_samples)+".npy",allow_pickle=True)
        
-
+    true_label=None
     if(dataset=="abstracts"):
-        color_list,category_names = assign_colors(category_list)
+        color_list,category_names,true_label = assign_colors(category_list)
     elif(dataset=="categories"):
-        color_list,category_names = assign_colors_sub_categories(category_list)
+        color_list,category_names,true_label = assign_colors_sub_categories(category_list)
     elif(dataset=="wikipedia"):
-        color_list,category_names = assign_colors_wikipedia(category_list)
+        color_list,category_names,true_label = assign_colors_wikipedia(category_list)
 
 
 
@@ -230,6 +258,7 @@ def plot_tree(tree,num_samples,n,dataset,isSet=True):
     # Set the color of each leaf    
     for leaf_patch, color in zip(ax.get_yticklabels(), leaf_colors):
         leaf_patch.set_color(color)
+
 
     new_labels = [cat+"||"+l for cat,l in zip(category_names,category_list)]
 
@@ -277,9 +306,21 @@ def plot_tree(tree,num_samples,n,dataset,isSet=True):
     plt.title('Dendrogram of Clusters')
 
     plt.draw()  # Ensure the updates are shown.
+
+    plt.savefig('out/'+name)
+   
+    #compute purity
     if(isSet):
-        plt.savefig('out/T_Star.pdf')
+        treeH = sets_to_higra_tree(tree)
+        #print(tree)
+        #print(true_label)
+        purity = hg.dendrogram_purity(treeH, np.array(true_label))
+        print("Dendrogram purity of T_star:", purity)
     else:
-        plt.savefig('out/T_Binary.pdf')
+        treeH = sets_to_higra_tree(optionalSet)
+        purity = hg.dendrogram_purity(treeH, np.array(true_label))
+        print("Dendrogram purity of T_binary:", purity)
+    
+
 
 

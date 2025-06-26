@@ -49,22 +49,30 @@ def main(args):
     index=[]
     i=0
     t=0
+    set_of_true_categories=[]
+
     for category in names_labels:
         label = label_id[category]
         c=(n_selection*(i+1))//11-(n_selection*i)//11
+
+        set_of_true_categories.append(tuple(str(i) for i in range(t,c+t)))
+
         t+=c
 
         index.append(selection[label][:c])
         i+=1
     index = [item for sublist in index for item in sublist]
+    
 
     assert(t==len(index))
 
     new_names = []
     for i in index:
         new_names.append((names[i],names_labels[labels[i]]))
-    print(new_names)
 
+    print(set_of_true_categories)
+
+    np.save(f"true_categories/true_categories_wikipedia_{args.num_samples}.npy",np.array(set_of_true_categories, dtype=object))
     np.save(f"wikipedia_labels/wikivitals_names_{args.num_samples}.npy", new_names)
     distance_matrix = pairwise_distances(embedding[index], metric=args.metric)
     np.save(f"distance_matrix/distance_matrix_w_{args.num_samples}.npy", distance_matrix)
@@ -96,13 +104,12 @@ def main(args):
         raise ValueError("Invalid embedding type") 
     
     if args.PCA:
-        matrix = apply_PCA(matrix, args.g)
+        matrix = apply_PCA(matrix,11, args.g)
 
     print(matrix.shape)
     distance_matrix = pairwise_distances(matrix, metric=args.metric)
-    np.save(f"distance_matrix/distance_matrix_wl_{args.num_samples}.npy", distance_matrix)
-
-
+    PCA_Flag = "PCA_" if args.PCA else ""
+    np.save(f"distance_matrix/distance_matrix_wl_{args.num_samples}_{PCA_Flag}{args.embedding}.npy", distance_matrix)
 
 
 def _load_leads(jsonl_path: Union[str, Path]) -> Dict[str, str]:

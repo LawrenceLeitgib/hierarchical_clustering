@@ -41,7 +41,7 @@ def main(args):
         raise ValueError("Invalid embedding type")
 
     if args.PCA:
-        matrix = apply_PCA(matrix, args.g)
+        matrix = apply_PCA(matrix,5, args.g)
 
     print(matrix.shape)
     distance_matrix = pairwise_distances(matrix, metric=args.metric)
@@ -86,12 +86,34 @@ def main(args):
     PCA_Flag = "PCA_" if args.PCA else ""
     np.save(f"distance_matrix/distance_matrix_c_{args.embedding}_{PCA_Flag}{args.num_samples}.npy", category_distances)
     np.save(f"categories_list/categories_list_{args.num_samples}.npy", categories)
+    true_categories=get_true_categories(categories)
+    np.save(f"true_categories/true_categories_categories_{args.num_samples}.npy", np.array(true_categories, dtype=object))
+
 
     if args.PCA:
         plt.figure(figsize=(10, 6))
         plt.scatter(matrix[:, 0], matrix[:, 1])
         plt.title('PCA Plot')
         plt.savefig(f"out/PCA_plot/{args.num_samples}_.png")
+
+def get_true_categories(sub_categories):
+    with open('resources/categories_name_map.json') as json_file:
+        data = json.load(json_file)
+
+
+
+    categories_dict={}
+    for i,sc in enumerate(sub_categories):
+        cat=data[sc][1]
+        if(not cat in categories_dict):
+            categories_dict[cat]=set()
+        categories_dict[cat].add(str(i))
+    true_categories = list()
+    for cat in categories_dict.keys():
+        true_categories.append(tuple(categories_dict[cat]))
+    return true_categories
+   
+
 
 
 if __name__ == '__main__':
@@ -102,7 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
     parser.add_argument('--g', type=bool, default=False, help='Whether to plot PCA explained variance')
     parser.add_argument('--MC', type=int, default=NUMBER_OF_SUB_CAT, help='Max number of categories')
-    parser.add_argument('--balance', type=float, default=-1, help='Balance the number of categories')
+    parser.add_argument('--balance', type=float, default=0.1, help='Balance the number of categories')
     
     args = parser.parse_args()
     main(args)

@@ -12,3 +12,6 @@ goodRun.txt
 /categories_list/*
 vital_xml
 true_categories
+/src/__pycache__/
+execute.sh
+out/*

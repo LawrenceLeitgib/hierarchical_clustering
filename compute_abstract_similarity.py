@@ -7,7 +7,7 @@ import json
 import argparse
 import numpy as np
 
-NUMBER_OF_SAMPLE = 50
+NUMBER_OF_SAMPLE = 100
 
 def main(args):
     print(f"Using embedding: {args.embedding}")
@@ -34,7 +34,7 @@ def main(args):
         raise ValueError("Invalid embedding type")
 
     if args.PCA:
-        matrix = apply_PCA(matrix, args.g)
+        matrix = apply_PCA(matrix, 11,args.g)
 
     print(matrix.shape)
 
@@ -59,6 +59,8 @@ def main(args):
     PCA_Flag = "PCA_" if args.PCA else ""
     np.save(f"distance_matrix/distance_matrix_{args.embedding}_{PCA_Flag}{args.num_samples}.npy", distance_matrix)
     np.save(f"categories_list/categories_map_{args.num_samples}.npy", categories_list)
+    true_categories = get_true_categories(categories_list)
+    np.save(f"true_categories/true_categories_abstracts_{args.num_samples}.npy",np.array(true_categories, dtype=object))
 
     if args.PCA:
         plt.figure(figsize=(10, 6))
@@ -66,7 +68,22 @@ def main(args):
         plt.title('PCA Plot')
         plt.savefig(f"out/PCA_plot/{args.num_samples}_.png")
 
-
+def get_true_categories(categories_list):
+    """
+    Create a set of sets of true categories from the categories list.
+    """
+    categories = sorted(set(categories_list))
+    k = len(categories)
+    true_categories_dict={}
+    for i in range(k):
+        true_categories_dict[categories[i]] = set()
+    for i in range(len(categories_list)):
+        true_categories_dict[categories_list[i]].add(str(i))
+    true_categories = list()
+    for i in range(k):
+        true_categories.append(tuple(true_categories_dict[categories[i]]))
+    return true_categories
+   
 def extract_abstracts_and_categories(num_samples, mc, balance):
     with open('resources/arxiv-metadata-oai-snapshot.json') as f:
         abstract = []
@@ -108,7 +125,7 @@ def apply_SVD(matrix):
     return principalComponents
 
 
-def apply_PCA(matrix, g):
+def apply_PCA(matrix,nc, g):
     if g:
         pca = PCA()
         pca.fit(matrix)
@@ -122,7 +139,7 @@ def apply_PCA(matrix, g):
         plt.xticks(np.arange(1, len(eigenvalues) + 1))
         plt.savefig(f"out/PCA_eigenValue/{matrix.shape[0]}_.png")
 
-    pca = PCA(n_components=5)
+    pca = PCA(n_components=nc)
     return pca.fit_transform(matrix)
 
 
@@ -152,8 +169,8 @@ if __name__ == '__main__':
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
     parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
     parser.add_argument('--g', type=bool, default=False, help='Whether to plot PCA explained variance')
-    parser.add_argument('--MC', type=int, default=1000, help='Max number of categories')
-    parser.add_argument('--balance', type=float, default=-1, help='Balance the number of categories')
+    parser.add_argument('--MC', type=int, default=6, help='Max number of categories')
+    parser.add_argument('--balance', type=float, default=0.1, help='Balance the number of categories')
 
     args = parser.parse_args()
     main(args)
