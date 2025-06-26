@@ -21,7 +21,7 @@ import numpy as np
 
 
 
-NUMBER_OF_SAMPLE=10000
+NUMBER_OF_SAMPLE=200
 
 def main(args):
     create_all_directories()

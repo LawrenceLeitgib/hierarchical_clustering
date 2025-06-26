@@ -17,13 +17,14 @@ from sknetwork.visualization import visualize_dendrogram
 from matplotlib import pyplot as plt
 import json
 import argparse
-import cupy as cp
+#import cupy as cp # Uncomment the next line if you have an nvidia GPU and want to use cupy for GPU acceleration
+import numpy as cp # use if you don't an nvidia GPU, otherwise use cupy
 import numpy as np
 
-# Limit managed memory usage to 32GB
-MAX_RAM_USAGE = 32 * (1024**3) / 1000  # 32GB in bytes
-cp.cuda.MemoryPool(cp.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
-cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
+# Limit managed memory usage to 32GB, uncomment the next three lines if you have an nvidia GPU and want to use cupy for GPU acceleration
+#MAX_RAM_USAGE = 32 * (1024**3) / 1000  # 32GB in bytes
+#cp.cuda.MemoryPool(cp.cuda.malloc_managed).set_limit(MAX_RAM_USAGE)
+#cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
 
 from src.plottingTree import plot_tree
 from src.treeSet import Node, tree_set_to_tree
@@ -55,12 +56,13 @@ def main(args):
         n = len(categories)
 
     similarity_matrix = 1 / (1 + distance_matrix)
-    condensed_distance = squareform(distance_matrix.get(), checks=False)
+    #if you use cupy replace the next line with: squareform(distance_matrix.get(), checks=False)
+    condensed_distance = squareform(distance_matrix, checks=False)
 
     #print(condensed_distance.shape)
 
     # Algorithm 1: Compute the binary tree
-    T_linkage = linkage(condensed_distance, method='single', metric=args.metric)
+    T_linkage = linkage(condensed_distance, method='complete', metric=args.metric)
 
     labels = [f"{i}" for i in range(n)]
     set_of_sets = linkage_to_set_of_sets(T_linkage, labels)
@@ -219,13 +221,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify embedding type.')
     parser.add_argument('--embedding', type=str, default='TF-IDF', help='The type of embedding to use')
     parser.add_argument('--num_samples', type=int, default=100, help='Number of samples to use')
-    parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
+    parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for linkage (should be the same as the one used for similarity matrix)')
     parser.add_argument('--eps', type=float, default=0, help='The epsilon value for Algorithm 3')
     parser.add_argument('--delta', type=float, default=0.1, help='The delta value for Algorithm 3')
     parser.add_argument('--deltaType', type=int, default=2, help='The algo use for the delta value')
-    parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
-    parser.add_argument('--dataset', type=str, default="abstracts", help='use categories')
-    parser.add_argument('--lead', type=bool, default=False, help='use lead or not')
+    parser.add_argument('--PCA', action="store_true", default=False, help='Apply PCA')
+    parser.add_argument('--dataset', type=str, default="abstracts", help='which dataset to use: wikipedia, categories or abstracts')
+    parser.add_argument('--lead', action="store_true", default=False, help='use lead or not for wikipedia dataset')
 
     args = parser.parse_args()
     main(args)
