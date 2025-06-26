@@ -76,6 +76,7 @@ def create_all_directories():
         "distance_matrix",
         "categories_list",
         "true_categories",
+        "wikipedia_labels",
         "out/categories_chart",
         "out/PCA_plot",
         "out/PCA_eigenValue"
