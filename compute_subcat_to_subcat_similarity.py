@@ -1,7 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import pairwise_distances
 from collections import defaultdict
-from compute_abstract_similarity import bm25_transform, apply_PCA, extract_abstracts_and_categories
+from compute_paper_to_paper_similarity import bm25_transform, apply_PCA, extract_abstracts_and_categories
 import json
 from matplotlib import pyplot as plt
 import argparse
@@ -121,8 +121,8 @@ if __name__ == '__main__':
     parser.add_argument('--embedding', type=str, default='TF-IDF', help='The type of embedding to use')
     parser.add_argument('--num_samples', type=int, default=NUMBER_OF_SAMPLE, help='Number of samples to use')
     parser.add_argument('--metric', type=str, default='cosine', help='The metric to use for clustering')
-    parser.add_argument('--PCA', type=bool, default=False, help='Apply PCA')
-    parser.add_argument('--g', type=bool, default=False, help='Whether to plot PCA explained variance')
+    parser.add_argument('--PCA', action="store_true", default=False, help='Apply PCA')
+    parser.add_argument('--g', action="store_true", default=False, help='Whether to plot PCA explained variance')
     parser.add_argument('--MC', type=int, default=NUMBER_OF_SUB_CAT, help='Max number of categories')
     parser.add_argument('--balance', type=float, default=0.1, help='Balance the number of categories')
     
